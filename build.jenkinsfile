@@ -1,0 +1,204 @@
+#!/usr/bin/env groovy
+
+def setJobProperties() {
+  properties([
+    [
+      $class: 'BuildDiscarderProperty',
+      strategy: [
+        $class: 'BuildRotator',
+        daysToKeep: 5,
+        numToKeep: 10,
+        artifactsDaysToKeep: 5,
+        artifactsNumToKeep: 10
+      ]
+    ]
+  ])
+}
+pipeline {
+    agent {
+        node {
+            label 'master'
+        }
+    }
+
+     parameters {
+
+        choice(name: 'environment', choices: "dev\ndev1\nqa\nprod")
+        string(name: 'branch', defaultValue: "feature")
+        string(name: 'BuildConfiguration', defaultValue: "Release")
+        string(name: 'artifactstagingfilename', defaultValue:"publish.zip")
+        string(name: 'sonarsqube_hostip',defaultValue:"52.161.104.190")
+    }
+
+
+    stages {
+         stage ('dotnet restore') {
+            steps {
+                 script {
+                    ansiColor('xterm') {
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        println "\u001B[34m\u001B[1mdotnet restore\u001B[0m"
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        try {
+                           sh'''
+
+                            dotnet restore Hitachi.Azure.DocStore.sln
+
+                            '''
+                            println "\u001B[32mrestored successfully\u001B[0m"
+                        } catch (Exception e) {
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            println "\u001B[31mFAILED: dotnet restore failed. Please fix the issues\u001B[0m"
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            sh(returnStdout: true, script: '''exit 1''')
+                        }
+                    }
+                }
+            }
+        }
+        stage ('start sonar scanner') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        println "\u001B[34m\u001B[1mdotnet build\u001B[0m"
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        try {
+                           sh'''
+                           export PATH="$HOME/.dotnet/tools:$PATH"
+                           dotnet sonarscanner begin /k:"capita-tfl-api" /d:sonar.host.url="http://${sonarsqube_hostip}:8080" /d:sonar.login="2c3ab09bb87446a39d79037587cc6c70d762a3e8"
+
+                            '''
+                            println "\u001B[32mdotnet build successful\u001B[0m"
+                        } catch (Exception e) {
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            println "\u001B[31mFAILED: dotnet build warning. Please fix the issues\u001B[0m"
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            sh(returnStdout: true, script: '''exit 1''')
+                        }
+                    }
+                }
+            }
+        }
+        stage ('dotnet build') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        println "\u001B[34m\u001B[1mdotnet build\u001B[0m"
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        try {
+                           sh'''
+
+                            dotnet build --configuration ${BuildConfiguration} -r linux-x64
+
+                            '''
+                            println "\u001B[32mdotnet build successful\u001B[0m"
+                        } catch (Exception e) {
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            println "\u001B[31mFAILED: dotnet build warning. Please fix the issues\u001B[0m"
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            sh(returnStdout: true, script: '''exit 1''')
+                        }
+                    }
+                }
+            }
+        }
+
+        stage ('dotnet test') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        println "\u001B[34m\u001B[1mconfig file creation\u001B[0m"
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        try {
+                           sh'''
+
+                                dotnet test Hitachi.Azure.DocStore.sln
+
+
+                            '''
+                            println "\u001B[32mdotnet test successful\u001B[0m"
+                        } catch (Exception e) {
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            println "\u001B[31mFAILED: dotnet test warning. Please fix the issues\u001B[0m"
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            
+                        }
+                    }
+                }
+            }
+        }
+        stage ('sonarscanner end') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        println "\u001B[34m\u001B[1mdotnet build\u001B[0m"
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        try {
+                           sh'''
+                           export PATH="$HOME/.dotnet/tools:$PATH"
+                           dotnet sonarscanner end /d:sonar.login="2c3ab09bb87446a39d79037587cc6c70d762a3e8"
+
+
+                            '''
+                            println "\u001B[32mdotnet build successful\u001B[0m"
+                        } catch (Exception e) {
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            println "\u001B[31mFAILED: dotnet build warning. Please fix the issues\u001B[0m"
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            sh(returnStdout: true, script: '''exit 1''')
+                        }
+                    }
+                }
+            }
+        }
+        stage ('dotnet publish') {
+            steps {
+                 script {
+                    ansiColor('xterm') {
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        println "\u001B[34m\u001B[1mcopy Chalice deployed state to s3\u001B[0m"
+                        println "\u001B[34m\u001B[1m**************\u001B[0m"
+                        try {
+                           sh'''
+                           if [ -d "/opt/jenkins/jobs/capita-tfl-api/publish" ]
+                            then
+                                echo "Directory /opt/jenkins/jobs/capita-tfl-api/publish exists."
+                            else
+                                echo "Error: Directory /opt/jenkins/jobs/capita-tfl-api/publish does not exists."
+                                mkdir /opt/jenkins/jobs/capita-tfl-api/publish
+                            fi
+                            ls
+                            #dotnet publish --configuration ${BuildConfiguration} -o /opt/jenkins/jobs/capita-tfl-api/publish --self-contained false -r linux-x64
+                            #dotnet publish --configuration Release -o /opt/jenkins/jobs/capita-tfl-api/publish -r linux-x64
+                            rm -rf /opt/jenkins/jobs/capita-tfl-api/publish/
+                            dotnet publish Hitachi.Azure.DocStore.Api/Hitachi.Azure.DocStore.Api.csproj --configuration Release -o /opt/jenkins/jobs/capita-tfl-api/publish -r linux-x64
+
+                            cd /opt/jenkins/jobs/capita-tfl-api/publish
+                            zip -r -p ${artifactstagingfilename} * -x="*.zip*"
+
+                            #cp ${artifactstagingfilename} /opt/jenkins/jobs/capita-tfl-api/publish/${artifactstagingfilename}
+                            ls /opt/jenkins/jobs/capita-tfl-api/publish
+                            '''
+                            println "\u001B[32mdotnet publish successful\u001B[0m"
+                        } catch (Exception e) {
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            println "\u001B[31mFAILED: dotnet publish error. Please fix the issues ${e}\u001B[0m"
+                            println "\u001B[31m********************************************************\u001B[0m"
+                            sh(returnStdout: true, script: '''exit 1''')
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            deleteDir()
+        }
+    }
+}
