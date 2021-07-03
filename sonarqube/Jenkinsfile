@@ -5,7 +5,7 @@ node {
     def rtGradle = Artifactory.newGradleBuild()
     def buildInfo = Artifactory.newBuildInfo()
 	  // config 
-  def to = emailextrecipients([
+    def to = emailextrecipients([
           [$class: 'CulpritsRecipientProvider'],
           [$class: 'DevelopersRecipientProvider'],
           [$class: 'RequesterRecipientProvider']
